@@ -1,4 +1,4 @@
-class ApiError extends Error {
+export class ApiResponse extends Response {
     constructor(
         statusCode,
         message = "Success",
