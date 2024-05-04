@@ -15,13 +15,7 @@ import { ApiResponse } from "../utils/ApiReponse.js";
 // return res
 
 const registerUser = asyncHandler(async (req, res) => {
-    res.status(200).json({
-        message: "Ok"
-    })
     const { fullName, email, password, username, avatar, coverImage } = req.body;
-
-    console.log("req.body ===>>", req.body);
-    console.log("req.files ===>>", req.files);
 
     // checking if input field is not empty
     if ([fullName, email, password, username].some((field) => field?.trim() === "")) {
@@ -42,7 +36,7 @@ const registerUser = asyncHandler(async (req, res) => {
     if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
         coverImageLocalPath = req.files.coverImage[0].path
     }
-    console.log("coverImageLocalPath =>", coverImageLocalPath);
+
 
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar is required")
@@ -71,10 +65,9 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong while registering a user");
     }
 
-    return res.status(201).json(
+    return res.status(201).send(
         new ApiResponse(200, "User registered successfully", createdUser)
     )
-
 })
 
 export default registerUser;
