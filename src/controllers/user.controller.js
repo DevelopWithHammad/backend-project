@@ -21,7 +21,7 @@ const options = {
 }
 
 const registerUser = asyncHandler(async (req, res) => {
-    const { fullName, email, password, username, avatar, coverImage } = req.body;
+    const { fullName, email, password, username } = req.body;
 
     // checking if input field is not empty
     if ([fullName, email, password, username].some((field) => field?.trim() === "")) {
@@ -102,8 +102,6 @@ const loginUser = asyncHandler(async (req, res) => {
     // send cookie
 
     const { username, password } = req.body;
-    console.log("username ==>", username);
-    console.log("password ==>", password);
 
     if (!(username && password)) {
         throw new ApiError(400, "username or password must required")
@@ -112,7 +110,6 @@ const loginUser = asyncHandler(async (req, res) => {
     const user = await User.findOne({
         $or: [{ username }, { password }]
     })
-
     if (!user) {
         throw new ApiError(404, "user with this username is not exist!")
     }
@@ -201,11 +198,11 @@ const handleRefreshAccessToken = asyncHandler(async (req, res) => {
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword, confirmPassword } = req.body;
 
-    if (!(oldPassword === confirmPassword)) {
+    if (!(oldPassword || confirmPassword)) {
         throw new ApiError(400, "old password and confirm password are not matched")
     }
 
-    const user = User.findById(req.user._id);
+    const user = await User.findById(req.user._id);
 
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
@@ -242,7 +239,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         throw new ApiError(400, "All fiels are required")
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user._id,
         {
             $set: {
@@ -270,7 +267,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Error while uploading on avatar");
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
@@ -295,7 +292,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Error while uploading on cover image");
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
@@ -309,6 +306,68 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user, "cover image updated successfully"))
 })
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params;
+
+    if (!username?.trim()) {
+        throw new ApiError(400, "username is missing")
+    }
+
+    const channel = await User.aggregate([
+        {
+            $match: {
+                username: username?.toLowerCase()
+            },
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"
+            },
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
+            },
+            $addFields: {
+                subscribersCount: {
+                    $size: "subscribers"
+                },
+                channelSubscribedToCount: {
+                    $size: "subscribedTo"
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: {
+                            $in: [req.user?._id, "$subscribers.subscriber"]
+                        },
+                        then: true,
+                        else: false
+                    }
+                }
+            },
+            $project: {
+                fullname: 1,
+                username: 1,
+                subscribersCount: 1,
+                channelSubscribedToCount: 1,
+                isSubscribed: 1,
+                coverImage: 1,
+                avatar: 1,
+                email: 1,
+            }
+        }
+    ])
+
+    if (!channel?.length) {
+        throw new ApiError(404, "channel not found or not exist")
+    }
+
+    return res.status(200)
+        .json(new ApiResponse(200, channel[0], "user channel fetched successfully"))
+})
+// TODO: delete previous avatar after updating
 export {
     registerUser,
     loginUser,
@@ -318,5 +377,6 @@ export {
     fetchCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+    getUserChannelProfile,
 }
